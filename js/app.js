@@ -504,7 +504,7 @@ function errCopy(c){ return ({
   tools_unavailable:'이 화면에서는 도구를 쓸 수 없어요.',
   not_granted:'이 페이지가 Claude를 쓰도록 아직 허용되지 않았어요. 페이지를 새로 열고 허용을 눌러주세요.',
   sampling_disabled:'이 계정에서는 AI 호출을 쓸 수 없어요. 칸을 직접 채워도 다음 단계는 돌아갑니다.',
-  not_declared:'AI 기능이 연결되지 않았어요.',
+  not_declared:'AI 기능이 연결되지 않았어요.',\n  api_not_configured:'Gemini API 키가 아직 연결되지 않았어요.',
   rate_limited:'요청이 몰렸어요. 30초쯤 뒤에 다시 눌러주세요.',
   session_expired:'로그인이 만료됐어요. 새로고침 후 다시 시도해주세요.',
   refused:'이 요청은 답변이 거절됐어요. 표현을 바꿔 다시 시도해주세요.',
@@ -513,6 +513,19 @@ function errCopy(c){ return ({
   prompt_too_large:'입력이 너무 길어요. 재료를 줄여주세요.',
   cancelled:'중단했어요.',
   upstream_error:'연결이 잠깐 끊겼어요. 다시 시도해주세요.'})[c]||'문제가 생겼어요. 다시 시도해주세요.'; }
+function geminiSample(){
+  return {json:async function(p,opt){
+    const r=await fetch('/api/generate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prompt:p}),
+      signal:opt&&opt.signal
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) throw {code:d.code||'upstream_error',message:d.message||('HTTP '+r.status)};
+    return d.data;
+  }};
+}
 async function askJson(p,tier){
   if(!sampleFn) throw {code:'not_declared',message:'no sample'};
   running=new AbortController();
@@ -1597,6 +1610,10 @@ render();
     if(window.claude&&typeof window.claude.use==='function'){
       const r=await Promise.all([claude.use('sample'),claude.use('downloads')]);
       sampleFn=r[0]||null; dlFn=r[1]||null;
+    }else{
+      const r=await fetch('/api/generate');
+      const d=await r.json();
+      if(r.ok&&d.configured) sampleFn=geminiSample();
     }
   }catch(e){}
   $('aiChip').textContent=sampleFn?'AI 연결됨 ✦':'AI 없음 · 직접 입력';
